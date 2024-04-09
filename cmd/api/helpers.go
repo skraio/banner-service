@@ -25,6 +25,44 @@ func (app *application) readIDParam(r *http.Request) (int64, error) {
 	return id, nil
 }
 
+func (app *application) readTagIDParam(r *http.Request) (int64, error) {
+    queryValues := r.URL.Query()
+
+    tagID, err := strconv.ParseInt(queryValues.Get("tag_id"), 10, 64)
+    if err != nil || tagID < 1 {
+        return 0, errors.New("invalid tag_id parameter")
+    }
+
+    return tagID, nil
+}
+
+func (app *application) readFeatureIDParam(r *http.Request) (int64, error) {
+    queryValues := r.URL.Query()
+
+    featureID, err := strconv.ParseInt(queryValues.Get("feature_id"), 10, 64)
+    if err != nil || featureID < 1 {
+        return 0, errors.New("invalid feature_id parameter")
+    }
+
+    return featureID, nil
+}
+
+func (app *application) readUseLastRevisionParam(r *http.Request) (bool, error) {
+    queryValues := r.URL.Query()
+
+    param, ok := queryValues["use_last_revision"]
+    if !ok || len(param[0]) == 0 {
+        return false, nil
+    }
+
+    useLastRevision, err := strconv.ParseBool(queryValues.Get("use_last_revision"))
+    if err != nil {
+        return false, errors.New("invalid use_last_revision parameter")
+    }
+
+    return useLastRevision, nil
+}
+
 func (app *application) writeJSON(w http.ResponseWriter, status int, data envelope, headers http.Header) error {
 	js, err := json.MarshalIndent(data, "", "\t")
 	if err != nil {
@@ -38,7 +76,7 @@ func (app *application) writeJSON(w http.ResponseWriter, status int, data envelo
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
+    w.WriteHeader(status)
 	w.Write(js)
 
 	return nil

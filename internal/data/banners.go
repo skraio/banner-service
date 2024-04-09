@@ -1,13 +1,17 @@
 package data
 
 import (
+	"database/sql"
+	"encoding/json"
+	"errors"
 	"time"
 
+	"github.com/lib/pq"
 	"github.com/skraio/banner-service/internal/validator"
 )
 
 type Banner struct {
-	BannerID  int64     `json:"id"`
+	BannerID  int64     `json:"banner_id"`
 	FeatureID int64     `json:"feature_id"`
 	TagIDs    []int64   `json:"tag_ids"`
 	Content   Content   `json:"content"`
@@ -22,16 +26,23 @@ type Content struct {
 	URL   string `json:"url"`
 }
 
+// func (c *Content) Scan(src interface{}) error {
+//     if src == nil {
+//         return nil
+//     }
+//     return json.Unmarshal(src.([]byte), c)
+// }
+
 func ValidateBanner(v *validator.Validator, banner *Banner) {
-    v.Check(banner.BannerID >= 0, "banner_id", "must be non-negative")
+	v.Check(banner.BannerID >= 0, "banner_id", "must be non-negative")
 
-    v.Check(banner.TagIDs != nil, "tag_id", "must be provided")
-    v.Check(len(banner.TagIDs) >= 1, "tag_ids", "must contain at least 1 tag")
-    v.Check(len(banner.TagIDs) <= 1000, "tag_ids", "must not contain more than 1000 tags")
-    v.Check(validator.Unique(banner.TagIDs), "tag_ids", "must not contain duplicate values")
-    v.Check(validator.NonNegative(banner.TagIDs), "tag_ids", "must be non-negative")
+	v.Check(banner.TagIDs != nil, "tag_id", "must be provided")
+	v.Check(len(banner.TagIDs) >= 1, "tag_ids", "must contain at least 1 tag")
+	v.Check(len(banner.TagIDs) <= 1000, "tag_ids", "must not contain more than 1000 tags")
+	v.Check(validator.Unique(banner.TagIDs), "tag_ids", "must not contain duplicate values")
+	v.Check(validator.NonNegative(banner.TagIDs), "tag_ids", "must be non-negative")
 
-    v.Check(banner.FeatureID >= 0, "feature_id", "must be non-negative")
+	v.Check(banner.FeatureID >= 0, "feature_id", "must be non-negative")
 
 	v.Check(banner.Content.Title != "", "content.title", "must be provided")
 	v.Check(len(banner.Content.Title) <= 50, "title", "must not be more than 50 bytes long")
@@ -41,4 +52,78 @@ func ValidateBanner(v *validator.Validator, banner *Banner) {
 
 	v.Check(banner.Content.URL != "", "content.url", "must be provided")
 	// add regex check for url
+}
+
+type BannerModel struct {
+	DB *sql.DB
+}
+
+func (b BannerModel) Insert(banner *Banner) error {
+    contentJSON, err := json.Marshal(banner.Content)
+    if err != nil {
+        return err
+    }
+
+    query := `
+        INSERT INTO banners (tag_ids, feature_id, content, is_active)
+        VALUES ($1, $2, $3, $4)
+        RETURNING banner_id, created_at, updated_at`
+
+    args := []interface{}{pq.Array(banner.TagIDs), banner.FeatureID, string(contentJSON), banner.IsActive}
+
+    return b.DB.QueryRow(query, args...).Scan(&banner.BannerID, &banner.CreatedAt, &banner.UpdatedAt)
+}
+
+
+func (b BannerModel) Get(tagID, featureID int64, useLastRevision bool) (*Banner, error) {
+    if tagID < 1 || featureID < 1 {
+        return nil, ErrRecordNotFound
+    }
+
+    // if useLastRevision {
+    // }
+
+    query := `
+        SELECT banner_id, content, created_at, updated_at, is_active
+        FROM banners
+        WHERE is_active = true AND $1 = ANY(tag_ids) AND feature_id = $2`
+
+    var banner Banner
+    var contentJSON []byte
+
+    err := b.DB.QueryRow(query, tagID, featureID).Scan(
+        &banner.BannerID,
+        &contentJSON,
+        &banner.CreatedAt,
+        &banner.UpdatedAt,
+        &banner.IsActive,
+    )
+
+    if err != nil {
+        switch {
+        case errors.Is(err, sql.ErrNoRows):
+            return nil, ErrRecordNotFound
+        default:
+            return nil, err
+        }
+    }
+
+    err = json.Unmarshal(contentJSON, &banner.Content)
+    if err != nil {
+        return nil, err
+    }
+
+    return &banner, nil
+}
+
+func (b BannerModel) Gets() ([]*Banner, error) {
+	return nil, nil
+}
+
+func (b BannerModel) Update(id int64) error {
+	return nil
+}
+
+func (b BannerModel) Delete(id int64) error {
+	return nil
 }
