@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/skraio/banner-service/internal/data"
@@ -37,17 +36,17 @@ func (app *application) showBannerHandler(w http.ResponseWriter, r *http.Request
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
 			app.notFoundResponse(w, r)
-            return
+			return
 		default:
 			app.serverErrorResponse(w, r, err)
-            return
+			return
 		}
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"content": banner.Content}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
-        return
+		return
 	}
 }
 
@@ -103,7 +102,76 @@ func (app *application) updateBannerHandler(w http.ResponseWriter, r *http.Reque
 		app.notFoundResponse(w, r)
 	}
 
-	fmt.Fprintf(w, "update the banner %d content\n", id)
+	banner, err := app.models.Banners.GetByID(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	var input struct {
+		TagIDs    []int64       `json:"tag_ids"`
+		FeatureID *int64        `json:"feature_id"`
+		Content   *data.Content `json:"content"`
+		IsActive  *bool         `json:"is_active"`
+	}
+
+	err = app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+    if input.TagIDs != nil {
+        banner.TagIDs = input.TagIDs
+    }
+
+    if input.FeatureID != nil {
+        banner.FeatureID = *input.FeatureID
+    }
+
+    if input.Content != nil {
+        if input.Content.Title != "" {
+            banner.Content.Title = input.Content.Title
+        }
+        if input.Content.Text != "" {
+            banner.Content.Text = input.Content.Text
+        }
+        if input.Content.URL != "" {
+            banner.Content.URL = input.Content.URL
+        }
+    }
+
+    if input.IsActive != nil {
+        banner.IsActive = *input.IsActive
+    }
+
+    v := validator.New()
+
+    if data.ValidateBanner(v, banner); !v.Valid() {
+        app.failedValidationResponse(w, r, v.Errors)
+        return
+    }
+
+    err = app.models.Banners.Update(banner)
+    if err != nil {
+        switch {
+        case errors.Is(err, data.ErrEditConflict):
+            app.editConflictResponse(w, r)
+        default:
+            app.serverErrorResponse(w, r, err)
+        }
+        return
+    }
+
+    err = app.writeJSON(w, http.StatusOK, envelope{"banner" : banner}, nil)
+    if err != nil {
+        app.serverErrorResponse(w, r, err)
+    }
 }
 
 // DELETE /v1/banner/{id}
@@ -113,5 +181,19 @@ func (app *application) deleteBannerHandler(w http.ResponseWriter, r *http.Reque
 		app.notFoundResponse(w, r)
 	}
 
-	fmt.Fprintf(w, "delete a banner %d\n", id)
+	err = app.models.Banners.Delete(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusNoContent, nil, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
 }

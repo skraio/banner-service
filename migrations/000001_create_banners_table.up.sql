@@ -13,7 +13,7 @@ create table if not exists banners (
     content json not null,
     is_active boolean not null,
     created_at timestamp(0) with time zone not null default now(),
-    updated_at timestamp(0) with time zone not null default now()
+    updated_at timestamp(6) with time zone not null default now()
 );
 
 -- create table if not exists bannertags (

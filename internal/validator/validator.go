@@ -34,9 +34,9 @@ func Unique[T comparable](values []T) bool {
     return len(values) == len(uniqueValues)
 }
 
-func NonNegative(values []int64) bool {
+func Positive(values []int64) bool {
     for _, value := range values {
-        if value < 0 {
+        if value <= 0 {
             return false
         }
     }
