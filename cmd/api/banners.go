@@ -11,27 +11,21 @@ import (
 // GET /v1/user_banner
 // curl -i -H "token: user_token" "localhost:4000/v1/user_banner?tag_id=111&feature_id=777"
 func (app *application) showBannerHandler(w http.ResponseWriter, r *http.Request) {
-	tagID, err := app.readTagIDParam(r)
-	if err != nil {
-		app.notFoundResponse(w, r)
+	var filters data.UserFilters
+
+	qs := r.URL.Query()
+	v := validator.New()
+
+	filters.TagID = app.readInt(qs, "tag_id", 0, data.ReadIntOptions{Required: true, IsID: true}, v)
+	filters.FeatureID = app.readInt(qs, "feature_id", 0, data.ReadIntOptions{Required: true, IsID: true}, v)
+	filters.UseLastRevision = app.readBool(qs, "use_last_revision", false, v)
+
+	if data.ValidateUserFilters(v, filters); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
-	featureID, err := app.readFeatureIDParam(r)
-	if err != nil {
-		app.notFoundResponse(w, r)
-		return
-	}
-
-	useLastRevision, err := app.readUseLastRevisionParam(r)
-	if err != nil {
-		app.notFoundResponse(w, r)
-		return
-	}
-
-	// userToken
-
-	banner, err := app.models.Banners.Get(tagID, featureID, useLastRevision)
+	banner, err := app.models.Banners.Get(filters)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -51,7 +45,33 @@ func (app *application) showBannerHandler(w http.ResponseWriter, r *http.Request
 }
 
 // GET /v1/banner
-func (app *application) showAllBannersHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) listFilteredBannersHandler(w http.ResponseWriter, r *http.Request) {
+	var filters data.AdminFilters
+
+	v := validator.New()
+
+	qs := r.URL.Query()
+
+	filters.FeatureID = app.readInt(qs, "feature_id", 0, data.ReadIntOptions{Required: false, IsID: true}, v)
+	filters.TagID = app.readInt(qs, "tag_id", 0, data.ReadIntOptions{Required: false, IsID: true}, v)
+	filters.Limit = app.readInt(qs, "limit", 10, data.ReadIntOptions{Required: false, IsID: false}, v)
+	filters.Offset = app.readInt(qs, "offset", 0, data.ReadIntOptions{Required: false, IsID: false}, v)
+
+	if data.ValidateAdminFilters(v, filters); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	banners, metadata, err := app.models.Banners.GetAll(filters)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"metadata": metadata, "banners": banners}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
 }
 
 // POST /v1/banner
@@ -126,52 +146,52 @@ func (app *application) updateBannerHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-    if input.TagIDs != nil {
-        banner.TagIDs = input.TagIDs
-    }
+	if input.TagIDs != nil {
+		banner.TagIDs = input.TagIDs
+	}
 
-    if input.FeatureID != nil {
-        banner.FeatureID = *input.FeatureID
-    }
+	if input.FeatureID != nil {
+		banner.FeatureID = *input.FeatureID
+	}
 
-    if input.Content != nil {
-        if input.Content.Title != "" {
-            banner.Content.Title = input.Content.Title
-        }
-        if input.Content.Text != "" {
-            banner.Content.Text = input.Content.Text
-        }
-        if input.Content.URL != "" {
-            banner.Content.URL = input.Content.URL
-        }
-    }
+	if input.Content != nil {
+		if input.Content.Title != "" {
+			banner.Content.Title = input.Content.Title
+		}
+		if input.Content.Text != "" {
+			banner.Content.Text = input.Content.Text
+		}
+		if input.Content.URL != "" {
+			banner.Content.URL = input.Content.URL
+		}
+	}
 
-    if input.IsActive != nil {
-        banner.IsActive = *input.IsActive
-    }
+	if input.IsActive != nil {
+		banner.IsActive = *input.IsActive
+	}
 
-    v := validator.New()
+	v := validator.New()
 
-    if data.ValidateBanner(v, banner); !v.Valid() {
-        app.failedValidationResponse(w, r, v.Errors)
-        return
-    }
+	if data.ValidateBanner(v, banner); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
 
-    err = app.models.Banners.Update(banner)
-    if err != nil {
-        switch {
-        case errors.Is(err, data.ErrEditConflict):
-            app.editConflictResponse(w, r)
-        default:
-            app.serverErrorResponse(w, r, err)
-        }
-        return
-    }
+	err = app.models.Banners.Update(banner)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrEditConflict):
+			app.editConflictResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
 
-    err = app.writeJSON(w, http.StatusOK, envelope{"banner" : banner}, nil)
-    if err != nil {
-        app.serverErrorResponse(w, r, err)
-    }
+	err = app.writeJSON(w, http.StatusOK, envelope{"banner": banner}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
 }
 
 // DELETE /v1/banner/{id}

@@ -27,7 +27,7 @@ type config struct {
 type application struct {
 	config config
 	logger *slog.Logger
-    models data.Models
+	models data.Models
 }
 
 func main() {
@@ -36,9 +36,9 @@ func main() {
 	flag.IntVar(&cfg.port, "port", 4000, "API server port")
 	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("BANNERSERVICE_DB_DSN"), "PostgreSQL DSN")
 
-    flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 1200, "PostgreSQL max open connections")
-    flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 600, "PostgreSQL max idle connections")
-    flag.DurationVar(&cfg.db.maxIdleTime, "db-max-idle-time", 10*time.Minute, "PostgreSQL max connection idle time")
+	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 1200, "PostgreSQL max open connections")
+	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 600, "PostgreSQL max idle connections")
+	flag.DurationVar(&cfg.db.maxIdleTime, "db-max-idle-time", 10*time.Minute, "PostgreSQL max connection idle time")
 
 	flag.Parse()
 
@@ -56,7 +56,7 @@ func main() {
 	app := &application{
 		config: cfg,
 		logger: logger,
-        models: data.NewModels(db),
+		models: data.NewModels(db),
 	}
 
 	srv := &http.Server{
@@ -78,9 +78,9 @@ func openDB(cfg config) (*sql.DB, error) {
 		return nil, err
 	}
 
-    db.SetMaxOpenConns(cfg.db.maxOpenConns)
-    db.SetMaxIdleConns(cfg.db.maxIdleConns)
-    db.SetConnMaxIdleTime(cfg.db.maxIdleTime)
+	db.SetMaxOpenConns(cfg.db.maxOpenConns)
+	db.SetMaxIdleConns(cfg.db.maxIdleConns)
+	db.SetConnMaxIdleTime(cfg.db.maxIdleTime)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

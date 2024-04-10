@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/skraio/banner-service/internal/data"
+	"github.com/skraio/banner-service/internal/validator"
 )
 
 type envelope = map[string]any
@@ -25,44 +28,6 @@ func (app *application) readIDParam(r *http.Request) (int64, error) {
 	return id, nil
 }
 
-func (app *application) readTagIDParam(r *http.Request) (int64, error) {
-    queryValues := r.URL.Query()
-
-    tagID, err := strconv.ParseInt(queryValues.Get("tag_id"), 10, 64)
-    if err != nil || tagID < 1 {
-        return 0, errors.New("invalid tag_id parameter")
-    }
-
-    return tagID, nil
-}
-
-func (app *application) readFeatureIDParam(r *http.Request) (int64, error) {
-    queryValues := r.URL.Query()
-
-    featureID, err := strconv.ParseInt(queryValues.Get("feature_id"), 10, 64)
-    if err != nil || featureID < 1 {
-        return 0, errors.New("invalid feature_id parameter")
-    }
-
-    return featureID, nil
-}
-
-func (app *application) readUseLastRevisionParam(r *http.Request) (bool, error) {
-    queryValues := r.URL.Query()
-
-    param, ok := queryValues["use_last_revision"]
-    if !ok || len(param[0]) == 0 {
-        return false, nil
-    }
-
-    useLastRevision, err := strconv.ParseBool(queryValues.Get("use_last_revision"))
-    if err != nil {
-        return false, errors.New("invalid use_last_revision parameter")
-    }
-
-    return useLastRevision, nil
-}
-
 func (app *application) writeJSON(w http.ResponseWriter, status int, data envelope, headers http.Header) error {
 	js, err := json.MarshalIndent(data, "", "\t")
 	if err != nil {
@@ -76,17 +41,17 @@ func (app *application) writeJSON(w http.ResponseWriter, status int, data envelo
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(status)
+	w.WriteHeader(status)
 	w.Write(js)
 
 	return nil
 }
 
 func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any) error {
-    maxBytes := 1_048_576
-    r.Body = http.MaxBytesReader(w, r.Body, int64(maxBytes))
-    dec := json.NewDecoder(r.Body)
-    dec.DisallowUnknownFields()
+	maxBytes := 1_048_576
+	r.Body = http.MaxBytesReader(w, r.Body, int64(maxBytes))
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
 
 	err := dec.Decode(dst)
 	if err != nil {
@@ -116,7 +81,7 @@ func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any
 			return fmt.Errorf("body contains unknown key %s", fieldName)
 
 		case errors.As(err, &maxBytesError):
-            return fmt.Errorf("body must not be larger than %d bytes", maxBytesError.Limit)
+			return fmt.Errorf("body must not be larger than %d bytes", maxBytesError.Limit)
 
 		case errors.As(err, &invalidUnmarshallError):
 			panic(err)
@@ -126,10 +91,49 @@ func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any
 		}
 	}
 
-    err = dec.Decode(&struct{}{})
-    if !errors.Is(err, io.EOF) {
-        return errors.New("body must only contain a single JSON value")
-    }
+	err = dec.Decode(&struct{}{})
+	if !errors.Is(err, io.EOF) {
+		return errors.New("body must only contain a single JSON value")
+	}
 
 	return nil
+}
+
+func (app *application) readInt(qs url.Values, key string, defaultValue int, opt data.ReadIntOptions, v *validator.Validator) int {
+	s := qs.Get(key)
+
+	if s == "" {
+		if opt.Required {
+			v.AddError(key, "is required")
+		}
+		return defaultValue
+	}
+
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		v.AddError(key, "must be an integer value")
+		return defaultValue
+	}
+
+	if opt.IsID && i == 0 {
+		v.AddError(key, "must be greater than zero")
+	}
+
+	return i
+}
+
+func (app *application) readBool(qs url.Values, key string, defaultValue bool, v *validator.Validator) bool {
+	s := qs.Get(key)
+
+	if s == "" {
+		return defaultValue
+	}
+
+	b, err := strconv.ParseBool(s)
+	if err != nil {
+		v.AddError(key, "must be a bool value")
+		return defaultValue
+	}
+
+	return b
 }

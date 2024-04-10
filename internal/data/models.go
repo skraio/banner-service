@@ -6,16 +6,16 @@ import (
 )
 
 var (
-    ErrRecordNotFound = errors.New("record not found")
-    ErrEditConflict = errors.New("edit conflict")
+	ErrRecordNotFound = errors.New("record not found")
+	ErrEditConflict   = errors.New("edit conflict")
 )
 
 type Models struct {
-    Banners BannerModel
+	Banners BannerModel
 }
 
 func NewModels(db *sql.DB) Models {
-    return Models{
-        Banners: BannerModel{DB: db},
-    }
+	return Models{
+		Banners: BannerModel{DB: db},
+	}
 }

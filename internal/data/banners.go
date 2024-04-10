@@ -1,6 +1,7 @@
 package data
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -26,12 +27,12 @@ type Content struct {
 	URL   string `json:"url"`
 }
 
-// func (c *Content) Scan(src interface{}) error {
-//     if src == nil {
-//         return nil
-//     }
-//     return json.Unmarshal(src.([]byte), c)
-// }
+func (c *Content) Scan(src interface{}) error {
+	if src == nil {
+		return nil
+	}
+	return json.Unmarshal(src.([]byte), c)
+}
 
 func ValidateBanner(v *validator.Validator, banner *Banner) {
 	v.Check(banner.BannerID >= 0, "banner_id", "must be positive")
@@ -71,11 +72,15 @@ func (b BannerModel) Insert(banner *Banner) error {
 
 	args := []interface{}{pq.Array(banner.TagIDs), banner.FeatureID, string(contentJSON), banner.IsActive}
 
-	return b.DB.QueryRow(query, args...).Scan(&banner.BannerID, &banner.CreatedAt, &banner.UpdatedAt)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	// return b.DB.QueryRow(query, args...).Scan(&banner.BannerID, &banner.CreatedAt, &banner.UpdatedAt)
+	return b.DB.QueryRowContext(ctx, query, args...).Scan(&banner.BannerID, &banner.CreatedAt, &banner.UpdatedAt)
 }
 
-func (b BannerModel) Get(tagID, featureID int64, useLastRevision bool) (*Banner, error) {
-	if tagID < 1 || featureID < 1 {
+func (b BannerModel) Get(filters UserFilters) (*Banner, error) {
+	if filters.TagID < 1 || filters.FeatureID < 1 {
 		return nil, ErrRecordNotFound
 	}
 
@@ -88,11 +93,14 @@ func (b BannerModel) Get(tagID, featureID int64, useLastRevision bool) (*Banner,
         WHERE is_active = true AND $1 = ANY(tag_ids) AND feature_id = $2`
 
 	var banner Banner
-	var contentJSON []byte
 
-	err := b.DB.QueryRow(query, tagID, featureID).Scan(
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	// err := b.DB.QueryRow(query, tagID, featureID).Scan(
+	err := b.DB.QueryRowContext(ctx, query, filters.TagID, filters.FeatureID).Scan(
 		&banner.BannerID,
-		&contentJSON,
+		&banner.Content,
 		&banner.CreatedAt,
 		&banner.UpdatedAt,
 		&banner.IsActive,
@@ -105,11 +113,6 @@ func (b BannerModel) Get(tagID, featureID int64, useLastRevision bool) (*Banner,
 		default:
 			return nil, err
 		}
-	}
-
-	err = json.Unmarshal(contentJSON, &banner.Content)
-	if err != nil {
-		return nil, err
 	}
 
 	return &banner, nil
@@ -126,11 +129,14 @@ func (b BannerModel) GetByID(banner_id int64) (*Banner, error) {
         WHERE banner_id = $1`
 
 	var banner Banner
-	var contentJSON []byte
 
-	err := b.DB.QueryRow(query, banner_id).Scan(
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	//err := b.DB.QueryRow(query, banner_id).Scan(
+	err := b.DB.QueryRowContext(ctx, query, banner_id).Scan(
 		&banner.BannerID,
-		&contentJSON,
+		&banner.Content,
 		&banner.CreatedAt,
 		&banner.UpdatedAt,
 		&banner.IsActive,
@@ -147,20 +153,63 @@ func (b BannerModel) GetByID(banner_id int64) (*Banner, error) {
 		}
 	}
 
-	err = json.Unmarshal(contentJSON, &banner.Content)
-	if err != nil {
-		return nil, err
-	}
-
 	return &banner, nil
 }
 
-func (b BannerModel) Gets() ([]*Banner, error) {
-	return nil, nil
+func (b BannerModel) GetAll(filters AdminFilters) ([]*Banner, Metadata, error) {
+	query := `
+        SELECT count(*) OVER(), banner_id, tag_ids, feature_id, content, is_active, created_at, updated_at
+        FROM banners
+        WHERE (feature_id = $1 OR $1 = 0)
+            AND ($2 = ANY(tag_ids) OR $2 = 0)
+        LIMIT $3 OFFSET $4`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	args := []any{filters.FeatureID, filters.TagID, filters.Limit, filters.Offset}
+
+	rows, err := b.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, Metadata{}, err
+	}
+
+	defer rows.Close()
+
+	totalRecords := 0
+	banners := []*Banner{}
+
+	for rows.Next() {
+		var banner Banner
+
+		err := rows.Scan(
+			&totalRecords,
+			&banner.BannerID,
+			pq.Array(&banner.TagIDs),
+			&banner.FeatureID,
+			&banner.Content,
+			&banner.IsActive,
+			&banner.CreatedAt,
+			&banner.UpdatedAt,
+		)
+		if err != nil {
+			return nil, Metadata{}, err
+		}
+
+		banners = append(banners, &banner)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, Metadata{}, err
+	}
+
+	metadata := calculateMetadata(totalRecords, filters.Offset, filters.Limit)
+
+	return banners, metadata, nil
 }
 
 func (b BannerModel) Update(banner *Banner) error {
-    query := `
+	query := `
         UPDATE banners
         SET
             tag_ids = $1,
@@ -179,23 +228,27 @@ func (b BannerModel) Update(banner *Banner) error {
 	args := []any{
 		pq.Array(banner.TagIDs),
 		banner.FeatureID,
-        contentJSON,
+		contentJSON,
 		banner.IsActive,
 		banner.BannerID,
-        banner.UpdatedAt,
+		banner.UpdatedAt,
 	}
 
-    err = b.DB.QueryRow(query, args...).Scan(&banner.UpdatedAt)
-    if err != nil {
-        switch {
-        case errors.Is(err, sql.ErrNoRows):
-            return ErrEditConflict
-        default:
-            return err
-        }
-    }
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
 
-    return nil
+	// err = b.DB.QueryRow(query, args...).Scan(&banner.UpdatedAt)
+	err = b.DB.QueryRowContext(ctx, query, args...).Scan(&banner.UpdatedAt)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return ErrEditConflict
+		default:
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (b BannerModel) Delete(banner_id int64) error {
@@ -207,7 +260,11 @@ func (b BannerModel) Delete(banner_id int64) error {
         DELETE FROM banners
         WHERE banner_id = $1`
 
-	result, err := b.DB.Exec(query, banner_id)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	// result, err := b.DB.Exec(query, banner_id)
+	result, err := b.DB.ExecContext(ctx, query, banner_id)
 	if err != nil {
 		return err
 	}

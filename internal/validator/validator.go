@@ -1,44 +1,44 @@
 package validator
 
 type Validator struct {
-    Errors map[string]string
+	Errors map[string]string
 }
 
 func New() *Validator {
-    return &Validator{Errors: make(map[string]string)}
+	return &Validator{Errors: make(map[string]string)}
 }
 
 func (v *Validator) Valid() bool {
-    return len(v.Errors) == 0
+	return len(v.Errors) == 0
 }
 
 func (v *Validator) AddError(key, message string) {
-    if _, exists := v.Errors[key]; !exists {
-        v.Errors[key] = message
-    }
+	if _, exists := v.Errors[key]; !exists {
+		v.Errors[key] = message
+	}
 }
 
 func (v *Validator) Check(ok bool, key, message string) {
-    if !ok {
-        v.AddError(key, message)
-    }
+	if !ok {
+		v.AddError(key, message)
+	}
 }
 
 func Unique[T comparable](values []T) bool {
-    uniqueValues := make(map[T]bool)
+	uniqueValues := make(map[T]bool)
 
-    for _, value := range values {
-        uniqueValues[value] = true
-    }
+	for _, value := range values {
+		uniqueValues[value] = true
+	}
 
-    return len(values) == len(uniqueValues)
+	return len(values) == len(uniqueValues)
 }
 
 func Positive(values []int64) bool {
-    for _, value := range values {
-        if value <= 0 {
-            return false
-        }
-    }
-    return true
+	for _, value := range values {
+		if value <= 0 {
+			return false
+		}
+	}
+	return true
 }
