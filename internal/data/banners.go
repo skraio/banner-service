@@ -52,7 +52,7 @@ func ValidateBanner(v *validator.Validator, banner *Banner) {
 	v.Check(len(banner.Content.Text) <= 500, "title", "must not be more than 500 bytes long")
 
 	v.Check(banner.Content.URL != "", "content.url", "must be provided")
-	// add regex check for url
+	// v.Check(validator.Matches(banner.Content.URL, validator.UrlRX), "content.url", "must be a valid URL")
 }
 
 type BannerModel struct {

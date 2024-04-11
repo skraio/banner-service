@@ -18,5 +18,5 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPatch, "/v1/banner/:id", app.updateBannerHandler)
 	router.HandlerFunc(http.MethodDelete, "/v1/banner/:id", app.deleteBannerHandler)
 
-	return app.recoverPanic(router)
+	return app.recoverPanic(app.rateLimit(router))
 }
