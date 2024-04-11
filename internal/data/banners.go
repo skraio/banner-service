@@ -79,7 +79,7 @@ func (b BannerModel) Insert(banner *Banner) error {
 	return b.DB.QueryRowContext(ctx, query, args...).Scan(&banner.BannerID, &banner.CreatedAt, &banner.UpdatedAt)
 }
 
-func (b BannerModel) Get(filters UserFilters) (*Banner, error) {
+func (b BannerModel) Get(filters UserFilters, userRole Role) (*Banner, error) {
 	if filters.TagID < 1 || filters.FeatureID < 1 {
 		return nil, ErrRecordNotFound
 	}
@@ -90,7 +90,7 @@ func (b BannerModel) Get(filters UserFilters) (*Banner, error) {
 	query := `
         SELECT banner_id, content, created_at, updated_at, is_active
         FROM banners
-        WHERE is_active = true AND $1 = ANY(tag_ids) AND feature_id = $2`
+        WHERE $1 = ANY(tag_ids) AND feature_id = $2`
 
 	var banner Banner
 
@@ -113,6 +113,10 @@ func (b BannerModel) Get(filters UserFilters) (*Banner, error) {
 		default:
 			return nil, err
 		}
+	}
+
+	if !banner.IsActive && userRole == RoleUser {
+		return nil, ErrForbiddenAccess
 	}
 
 	return &banner, nil

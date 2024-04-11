@@ -11,6 +11,7 @@ import (
 // GET /v1/user_banner
 // curl -i -H "token: user_token" "localhost:4000/v1/user_banner?tag_id=111&feature_id=777"
 func (app *application) showBannerHandler(w http.ResponseWriter, r *http.Request) {
+
 	var filters data.UserFilters
 
 	qs := r.URL.Query()
@@ -20,16 +21,21 @@ func (app *application) showBannerHandler(w http.ResponseWriter, r *http.Request
 	filters.FeatureID = app.readInt(qs, "feature_id", 0, data.ReadIntOptions{Required: true, IsID: true}, v)
 	filters.UseLastRevision = app.readBool(qs, "use_last_revision", false, v)
 
-	if data.ValidateUserFilters(v, filters); !v.Valid() {
+	if data.ValidateRequiredFilters(v, filters); !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
-	banner, err := app.models.Banners.Get(filters)
+	user := app.contextGetUser(r)
+
+	banner, err := app.models.Banners.Get(filters, user.Role)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
 			app.notFoundResponse(w, r)
+			return
+		case errors.Is(err, data.ErrForbiddenAccess):
+			app.forbiddenAccessResponse(w, r)
 			return
 		default:
 			app.serverErrorResponse(w, r, err)
@@ -57,7 +63,7 @@ func (app *application) listFilteredBannersHandler(w http.ResponseWriter, r *htt
 	filters.Limit = app.readInt(qs, "limit", 10, data.ReadIntOptions{Required: false, IsID: false}, v)
 	filters.Offset = app.readInt(qs, "offset", 0, data.ReadIntOptions{Required: false, IsID: false}, v)
 
-	if data.ValidateAdminFilters(v, filters); !v.Valid() {
+	if data.ValidateNonRequiredFilters(v, filters); !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}

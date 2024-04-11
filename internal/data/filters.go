@@ -22,12 +22,12 @@ type AdminFilters struct {
 	Offset    int
 }
 
-func ValidateUserFilters(v *validator.Validator, f UserFilters) {
+func ValidateRequiredFilters(v *validator.Validator, f UserFilters) {
 	v.Check(f.TagID > 0, "tag_id", "must be greater than zero")
 	v.Check(f.FeatureID > 0, "feature_id", "must be greater than zero")
 }
 
-func ValidateAdminFilters(v *validator.Validator, f AdminFilters) {
+func ValidateNonRequiredFilters(v *validator.Validator, f AdminFilters) {
 	if f.TagID != 0 {
 		v.Check(f.TagID > 0, "tag_id", "must be greater than zero")
 	}

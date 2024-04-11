@@ -58,3 +58,23 @@ func (app *application) rateLimitExceedResponse(w http.ResponseWriter, r *http.R
 	message := "rate limit exceed"
 	app.errorResponse(w, r, http.StatusTooManyRequests, message)
 }
+
+func (app *application) invalidCredentialsResponse(w http.ResponseWriter, r *http.Request) {
+	message := "user not authorized"
+	app.errorResponse(w, r, http.StatusUnauthorized, message)
+}
+
+func (app *application) invalidTokenResponse(w http.ResponseWriter, r *http.Request) {
+	message := "invalid or missing token"
+	app.errorResponse(w, r, http.StatusUnauthorized, message)
+}
+
+func (app *application) authenticationRequiredResponse(w http.ResponseWriter, r *http.Request) {
+	message := "you must be authenticated to access this resource"
+	app.errorResponse(w, r, http.StatusUnauthorized, message)
+}
+
+func (app *application) forbiddenAccessResponse(w http.ResponseWriter, r *http.Request) {
+	message := "user does not have access"
+	app.errorResponse(w, r, http.StatusForbidden, message)
+}
