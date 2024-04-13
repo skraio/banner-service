@@ -1,5 +1,9 @@
 package validator
 
+import "regexp"
+
+var UrlRX = regexp.MustCompile(`^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$`)
+
 type Validator struct {
 	Errors map[string]string
 }
@@ -22,6 +26,10 @@ func (v *Validator) Check(ok bool, key, message string) {
 	if !ok {
 		v.AddError(key, message)
 	}
+}
+
+func Matches(value string, rx *regexp.Regexp) bool {
+	return rx.MatchString(value)
 }
 
 func Unique[T comparable](values []T) bool {

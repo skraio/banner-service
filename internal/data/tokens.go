@@ -53,7 +53,7 @@ func (m TokenModel) New(userID int64) (*Token, error) {
 	}
 
 	err = m.Insert(token)
-	return token, nil
+	return token, err
 }
 
 func (m TokenModel) Insert(token *Token) error {

@@ -1,0 +1,32 @@
+version: "3.9"
+
+services:
+  database:
+    image: postgres
+    container_name: postgres
+    hostname: db
+    ports:
+      - "5432:5432"
+    volumes:
+      - database:/var/lib/postgresql/data/
+    environment:
+      POSTGRES_USER: "bannerservice"
+      POSTGRES_PASSWORD: "pass777"
+      POSTGRES_DB: "bannerservice"
+    restart: always
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: banner-api
+    hostname: banner-api
+    env_file: .env
+    ports:
+      - "8080:8080"
+    depends_on:
+      - database
+    command: ["/bin/api"]
+
+volumes:
+  database:

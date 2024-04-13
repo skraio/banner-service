@@ -8,8 +8,6 @@ import (
 	"github.com/skraio/banner-service/internal/validator"
 )
 
-// GET /v1/user_banner
-// curl -i -H "token: user_token" "localhost:4000/v1/user_banner?tag_id=111&feature_id=777"
 func (app *application) showBannerHandler(w http.ResponseWriter, r *http.Request) {
 
 	var filters data.UserFilters
@@ -50,7 +48,6 @@ func (app *application) showBannerHandler(w http.ResponseWriter, r *http.Request
 	}
 }
 
-// GET /v1/banner
 func (app *application) listFilteredBannersHandler(w http.ResponseWriter, r *http.Request) {
 	var filters data.AdminFilters
 
@@ -80,7 +77,6 @@ func (app *application) listFilteredBannersHandler(w http.ResponseWriter, r *htt
 	}
 }
 
-// POST /v1/banner
 func (app *application) createBannerHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		TagIDs    []int64      `json:"tag_ids"`
@@ -121,7 +117,6 @@ func (app *application) createBannerHandler(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-// PATCH /v1/banner/{id}
 func (app *application) updateBannerHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := app.readIDParam(r)
 	if err != nil || id < 1 {
@@ -200,7 +195,6 @@ func (app *application) updateBannerHandler(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-// DELETE /v1/banner/{id}
 func (app *application) deleteBannerHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := app.readIDParam(r)
 	if err != nil || id < 1 {
