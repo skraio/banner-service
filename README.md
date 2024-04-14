@@ -1,24 +1,32 @@
 # Сервис баннеров
-Этот сервис позволяет отображать баннеры для конкретного пользователя на основе
-определенных фич и тегов пользователя. Он также предоставляет
-функциональные возможности для управления баннерами и связанными с ними тегами
-и фичами.
 
 ## Обзор:
-Сервис работает с баннерами, которые представляют собой JSON-документы,
-описывающие элементы пользовательского интерфейса. Каждый баннер связан с
-фичей (представленной идентификатором) и несколькими тегами
-(представленными идентификаторами). 
+Сервис баннеров — это сервис для отображения персонализированных баннеров
+пользователям на основе их фич и тегов. Сервис предоставляет возможности для
+управления баннерами через REST API.
 
-### Инструкция по установке
+## Функционал
+- **Отображение баннеров**: Показ различных баннеров в зависимости от фич и тегов пользователя
+- **Управление баннерами**: Создание, обновление и удаление баннеров
+- **Управление доступом**: Различные уровни доступа через пользовательские и админские токены
+
+## Технологии
+- **Язык программирования**: Go
+- **Сервер**: Docker и Docker-compose для развертывания и управления контейнерами
+- **База данных**: PostgreSQL
+- **Формат данных**: JSON-документы, описывающие элементы пользовательского интерфейса
+
+
+## Установка и начало работы
+
+### Предварительные требования
+- Установленный Docker и Docker-compose
+- Git
+
+### Установка проекта
 ```bash
 git clone https://github.com/skraio/banner-service.git
 cd banner-service
-```
-
-### Создание докер контейнеров
-```bash
-docker-compose up -d --build
 ```
 
 ### Запуск сервера
@@ -27,7 +35,7 @@ docker-compose up -d
 ```
 
 ### Применение миграций
-Скачиваем cli тул [migrate](https://github.com/golang-migrate/migrate/tree/master):
+Установите инструмент миграции [migrate](https://github.com/golang-migrate/migrate/tree/master):
 ```bash
 go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 ```
@@ -36,10 +44,11 @@ go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@lat
 make migrations-up
 ```
 
-### Использование API
+## Примеры использования API
+
 #### POST /user: Создание пользователя с правами админа:
 ```bash
-curl -d '{"username":"Admin01","password":"strongpassword","role":"admin"}' localhost:8080/v1/user
+curl -d '{"username":"Admin01","password":"strongpassword","role":"admin"}' localhost:8080/user
 ```
 Тело ответа:
 ```bash
@@ -57,7 +66,7 @@ curl -d '{"username":"Admin01","password":"strongpassword","role":"admin"}' loca
 #### POST /banner: Создание баннера с админским токеном:
 ```bash
 BODY='{"tag_ids":[1,2,3],"feature_id":777,"content":{"title":"cakes","text":"homemade birthday cakes","url":"https://example.com"},"is_active":true}'
-curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" -d "$BODY" localhost:8080/v1/banner
+curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" -d "$BODY" localhost:8080/banner
 ```
 Тело ответа:
 ```bash
@@ -66,9 +75,9 @@ curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" -d "$BODY" localhost:
 }
 ```
 
-#### POST /user: Создание пользователя с правами пользователя
+#### POST /user: Создание пользователя с правами обычного пользователя
 ```bash
-curl -i -d '{"username":"User1","password":"strongpassword","role":"user"}' localhost:8080/v1/user
+curl -i -d '{"username":"User1","password":"strongpassword","role":"user"}' localhost:8080/user
 ```
 Тело ответа:
 ```bash
@@ -85,7 +94,7 @@ curl -i -d '{"username":"User1","password":"strongpassword","role":"user"}' loca
 
 #### GET /user_banner: Получение баннера по фиче и тегу
 ```bash
-curl -H "Authorization: Bearer XMIDHIYCER45IU2YTQ726VVH6A" 'localhost:8080/v1/user_banner?feature_id=777&tag_id=2'
+curl -H "Authorization: Bearer XMIDHIYCER45IU2YTQ726VVH6A" 'localhost:8080/user_banner?feature_id=777&tag_id=2'
 ```
 Тело ответа:
 ```bash
@@ -101,7 +110,7 @@ curl -H "Authorization: Bearer XMIDHIYCER45IU2YTQ726VVH6A" 'localhost:8080/v1/us
 #### GET /banner: Получение списка баннеров по фиче и/или тегу
 1) По фиче:
 ```bash
-curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" 'localhost:8080/v1/banner?feature_id=777'
+curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" 'localhost:8080/banner?feature_id=777'
 ```
 Тело ответа:
 ```bash
@@ -152,7 +161,7 @@ curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" 'localhost:8080/v1/ba
 
 2) По тегу:
 ```bash
-curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" 'localhost:8080/v1/banner?tag_id=1'
+curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" 'localhost:8080/banner?tag_id=1'
 ```
 Тело ответа:
 ```bash
@@ -203,7 +212,7 @@ curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" 'localhost:8080/v1/ba
 
 3) По фиче и тегу:
 ```bash
-curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" 'localhost:8080/v1/banner?tag_id=1&feature_id=999'
+curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" 'localhost:8080/banner?tag_id=1&feature_id=999'
 ```
 Тело ответа:
 ```bash
@@ -237,7 +246,7 @@ curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" 'localhost:8080/v1/ba
 
 #### PATCH /banner/{id}: Обновление содержимого баннера
 ```bash
-curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" -X PATCH -d '{"feature_id":90909,"is_active":false,"content":{"text":"stylish and functional kitchen tables"}}' "localhost:8080/v1/banner/3"
+curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" -X PATCH -d '{"feature_id":90909,"is_active":false,"content":{"text":"stylish and functional kitchen tables"}}' "localhost:8080/banner/3"
 ```
 Тело ответа:
 ```bash
@@ -264,8 +273,8 @@ curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" -X PATCH -d '{"featur
 
 #### DELETE /banner/{id}: Удаление баннера
 ```bash
-curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" -X DELETE "localhost:8080/v1/banner/2"
-curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" "localhost:8080/v1/banner"
+curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" -X DELETE "localhost:8080/banner/2"
+curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" "localhost:8080/banner"
 ```
 Результат - баннер успешно удален
 ```bash
@@ -314,12 +323,16 @@ curl -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" "localhost:8080/v1/ba
 }
 ```
 ### Нагрузочное тестирование
-При 1000 запросах среднее время ответа 4ms и SLI успешности ответа 1000/1000
+При выполнении 1000 запросов, сервис показал следующие результаты:
+- Среднее время ответа: 4 мс
+- Успешность ответов: 100%
+
+#### Пример команды для нагрузочного тестирования:
 ```bash
 hey -m GET \
     -H "Authorization: Bearer FSEYMEACLQJTIDJQR5NLUONYAA" \
     -n 1000 \
-    "http://localhost:8080/v1/user_banner?tag_id=1&feature_id=90909"
+    "http://localhost:8080/user_banner?tag_id=1&feature_id=90909"
 
 
 Summary:
@@ -365,3 +378,8 @@ Details (average, fastest, slowest):
 Status code distribution:
   [200] 1000 responses
 ```
+
+### В разработке
+- [ ] **Тестирование**: Интеграционные или E2E тесты
+- [ ] **Флаг `use_last_revision`**: Механизм для обеспечения актуальности данных для некоторых пользователей
+- [ ] **Управление версиями баннеров**: Разработка API для просмотра до трех предыдущих версий баннеров и выбора подходящего варианта

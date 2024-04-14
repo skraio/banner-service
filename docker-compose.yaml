@@ -9,10 +9,8 @@ services:
       - "5432:5432"
     volumes:
       - database:/var/lib/postgresql/data/
-    environment:
-      POSTGRES_USER: "bannerservice"
-      POSTGRES_PASSWORD: "pass777"
-      POSTGRES_DB: "bannerservice"
+    env_file:
+      - ".env"
     restart: always
 
   api:
