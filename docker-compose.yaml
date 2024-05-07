@@ -13,6 +13,13 @@ services:
       - ".env"
     restart: always
 
+  redis:
+    image: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
   api:
     build:
       context: .
@@ -24,7 +31,9 @@ services:
       - "8080:8080"
     depends_on:
       - database
+      - redis
     command: ["/bin/api"]
 
 volumes:
   database:
+  redis_data:

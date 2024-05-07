@@ -6,15 +6,12 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/docker/docker/api/types/filters"
 	"github.com/lib/pq"
 	"github.com/skraio/banner-service/internal/data"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
-	_ "gorm.io/driver/postgres"
-	_ "gorm.io/gorm"
 )
 
 type BannerTestSuite struct {

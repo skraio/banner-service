@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 	"github.com/skraio/banner-service/internal/validator"
 )
 
@@ -57,6 +59,25 @@ func ValidateBanner(v *validator.Validator, banner *Banner) {
 
 type BannerModel struct {
 	DB *sql.DB
+	RD *redis.Client
+}
+
+func (b BannerModel) InsertToCache(ctx context.Context, banner *Banner, filters UserFilters) error {
+	contentJSON, err := json.Marshal(banner.Content)
+	if err != nil {
+		return err
+	}
+
+    if err := b.RD.Set(
+        ctx,
+        fmt.Sprintf("%d,%d", filters.TagID, filters.FeatureID),
+        contentJSON,
+        time.Duration(5 * time.Minute),
+	).Err(); err != nil {
+        return err
+    }
+
+    return nil
 }
 
 func (b BannerModel) Insert(banner *Banner) error {
@@ -75,23 +96,52 @@ func (b BannerModel) Insert(banner *Banner) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
+    var filters UserFilters
+    filters.FeatureID = int(banner.FeatureID)
+    for tagID := range banner.TagIDs {
+        filters.TagID = tagID
+        err := b.InsertToCache(ctx, banner, filters)
+        if err != nil {
+            return err
+        }
+    }
+
 	return b.DB.QueryRowContext(ctx, query, args...).Scan(&banner.BannerID, &banner.CreatedAt, &banner.UpdatedAt)
 }
 
-func (b BannerModel) Get(filters UserFilters, userRole Role) (*Banner, error) {
+func (b BannerModel) GetFromCache(ctx context.Context, filters UserFilters, userRole Role) (*Banner, error) {
 	if filters.TagID < 1 || filters.FeatureID < 1 {
 		return nil, ErrRecordNotFound
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	var banner Banner
+
+	data, err := b.RD.Get(ctx, fmt.Sprintf("%d,%d", filters.TagID, filters.FeatureID)).Result()
+	if err != nil {
+		switch {
+		case errors.Is(err, redis.Nil):
+			return nil, ErrCacheNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	err = json.Unmarshal([]byte(data), &banner)
+	if err != nil {
+		return nil, err
+	}
+	return &banner, nil
+}
+
+func (b BannerModel) GetFromRDBMS(ctx context.Context, filters UserFilters, userRole Role) (*Banner, error) {
+    var banner Banner
 	query := `
         SELECT banner_id, content, created_at, updated_at, is_active
         FROM banners
         WHERE $1 = ANY(tag_ids) AND feature_id = $2`
-
-	var banner Banner
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
 
 	err := b.DB.QueryRowContext(ctx, query, filters.TagID, filters.FeatureID).Scan(
 		&banner.BannerID,
@@ -109,6 +159,46 @@ func (b BannerModel) Get(filters UserFilters, userRole Role) (*Banner, error) {
 			return nil, err
 		}
 	}
+
+    return &banner, nil
+}
+
+func (b BannerModel) Get(filters UserFilters, userRole Role) (*Banner, error) {
+	if filters.TagID < 1 || filters.FeatureID < 1 {
+		return nil, ErrRecordNotFound
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+    var banner Banner
+	if filters.UseLastRevision {
+		cachedBanner, err := b.GetFromCache(ctx, filters, userRole)
+		switch {
+		case errors.Is(err, ErrCacheNotFound):
+			rdbmsBanner, err := b.GetFromRDBMS(ctx, filters, userRole)
+            if err != nil {
+                return nil, err
+            }
+
+            err = b.InsertToCache(ctx, rdbmsBanner, filters)
+            if err != nil {
+                return nil, err
+            }
+
+            banner = *rdbmsBanner
+		case nil == err:
+			return cachedBanner, nil
+		default:
+			return nil, err
+		}
+	} else {
+        rdbmsBanner, err := b.GetFromRDBMS(ctx, filters, userRole)
+        if err != nil {
+            return nil, err
+        }
+        banner = *rdbmsBanner
+    }
 
 	if !banner.IsActive && userRole == RoleUser {
 		return nil, ErrForbiddenAccess
